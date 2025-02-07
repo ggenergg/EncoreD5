@@ -197,6 +197,13 @@ ce Node
 --------
 50          1           20.20.20.20                             5000         no 
 
+
+
+
+
+
+
+
 CCNP SKILL 2: MPLS VRF VPN 
 
 d1 2006
@@ -413,8 +420,8 @@ config t
     mpls label protocol ldp
     !mpls mtu override 1512
   int Ethernet1/2
-    ____ __
-    ____   ____  ________  ___
+   mpls ip
+    mpls label protocol ldp
     !mpls mtu override 1512
 ****
 R1-1:PEz
@@ -422,29 +429,30 @@ config t
  ip cef
  mpls ip
   int Ethernet1/0
-    ____ __
-    ____   ____  ________  ___
+   mpls ip
+    mpls label protocol ldp
     !mpls mtu override 1512
 
 How to check:
 R2P#show mpls ldp neighbor (lib)
+        Peer LDP Ident: 172.16.1.3:0; Local LDP Ident 172.16.1.2:0
+        TCP connection: 172.16.1.3.11463 - 172.16.1.2.646
+        State: Oper; Msgs sent/rcvd: 10/10; Downstream
+        Up time: 00:00:28
+        LDP discovery sources:
+          Ethernet1/1, Src IP addr: 10.1.1.6
+        Addresses bound to peer LDP Ident:
+          10.1.1.6        10.1.1.9        172.16.1.3      
     Peer LDP Ident: 172.16.1.1:0; Local LDP Ident 172.16.1.2:0
-        TCP connection: 172.16.1.1.646 - 172.16.1.2.23066
-        State: Oper; Msgs sent/rcvd: 8/8; Downstream
-        Up time: 00:00:53
+        TCP connection: 172.16.1.1.646 - 172.16.1.2.28748
+        State: Oper; Msgs sent/rcvd: 10/13; Downstream
+        Up time: 00:00:21
         LDP discovery sources:
-          FastEthernet1/1, Src IP addr: 192.168.1.1
+          Ethernet1/2, Src IP addr: 10.1.1.1
         Addresses bound to peer LDP Ident:
-          192.168.1.1     172.16.1.1      
-    Peer LDP Ident: 172.16.1.3:0; Local LDP Ident 172.16.1.2:0
-        TCP connection: 172.16.1.3.41657 - 172.16.1.2.646
-        State: Oper; Msgs sent/rcvd: 8/8; Downstream
-        Up time: 00:00:40
-        LDP discovery sources:
-          FastEthernet1/2, Src IP addr: 192.168.1.6
-        Addresses bound to peer LDP Ident:
-          192.168.1.6     172.16.1.3      
-R2P#
+          10.1.1.1        208.8.8.1       207.7.7.1       209.9.9.1       
+          172.16.1.1      
+
 
 r2P#show mpls forwarding-table (fib)
 Local  Outgoing    Prefix            Bytes tag  Outgoing   Next Hop    
@@ -472,13 +480,17 @@ r2P#show mpls ldp bindings (lfib)
         remote binding: tsr: 172.16.1.3:0, tag: 18
 
 r2P#show ip route (routing table)
-     172.16.0.0/32 is subnetted, 3 subnets
-O       172.16.1.1 [110/2] via 192.168.1.1, 00:15:15, FastEthernet1/1
-O       172.16.1.3 [110/2] via 192.168.1.6, 00:15:15, FastEthernet1/2
-C       172.16.1.2 is directly connected, Loopback0
-     192.168.1.0/30 is subnetted, 2 subnets
-C       192.168.1.0 is directly connected, FastEthernet1/1
-C       192.168.1.4 is directly connected, FastEthernet1/2
+      10.0.0.0/8 is variably subnetted, 5 subnets, 2 masks
+C        10.1.1.0/30 is directly connected, Ethernet1/2
+L        10.1.1.2/32 is directly connected, Ethernet1/2
+C        10.1.1.4/30 is directly connected, Ethernet1/1
+L        10.1.1.5/32 is directly connected, Ethernet1/1
+O        10.1.1.8/30 [110/20] via 10.1.1.6, 00:01:18, Ethernet1/1
+      172.16.0.0/32 is subnetted, 4 subnets
+O        172.16.1.1 [110/11] via 10.1.1.1, 00:05:40, Ethernet1/2
+C        172.16.1.2 is directly connected, Loopback0
+O        172.16.1.3 [110/11] via 10.1.1.6, 00:05:50, Ethernet1/1
+O        172.16.1.4 [110/21] via 10.1.1.6, 00:00:58, Ethernet1/1
 
 STEP2: VRF CONFIGURATION:
   virtual route forwarder: "Virtual/logical Router"
@@ -500,8 +512,8 @@ config t
 R1:pez
 config t
  ip vrf clientBDOb
-  rd __:__
-  __________   _____:___
+  rd 999:1
+  route-target 64999:1
  ip vrf clientBPIb
   rd 999:2
   route-target 64999:2
@@ -521,7 +533,7 @@ R1-PEz#show ip vrf
   clientBDOb                       999:1               
   clientBPIb                       999:2               
   clientPNBb                       999:3               
-SW3PEz#
+!try to add clientEASTWESTbankA / B 
 
 STEP3: CONFIGURING VRF INTERFACES ON PE ROUTERS:
 
@@ -594,6 +606,8 @@ config t
   !activate the neigbor and exchange vpnv4 routes(32+64)
 
 
+!This should be good.
+%BGP-5-ADJCHANGE: neighbor 172.16.1.4 Up
 
 
 
@@ -710,13 +724,187 @@ config t
  router eigrp 90
   network 10.0.0.0
   no auto-summary
-****
+  end
+
+!There should be adjacency
+ %DUAL-5-NBRCHANGE: EIGRP-IPv4 90: Neighbor 10.1.1.2 (Ethernet1/1) is up: new adjacency
+**************************************
+
 On all BPI(ospf) routers:
 config t
  no router ospf 1
  router ospf 69
   network 0.0.0.0 0.0.0.0 area 0
+end
+
+!There should be adjacency
+%OSPF-5-ADJCHG: Process 69, Nbr 10.1.1.6 on Ethernet1/3 from LOADING to FULL
+
+!FOR TESTING:
+@I2-BPIBGC
+conf t
+int lo 69
+ip add 69.0.0.1 255.0.0.0
+end
+!the other BPI must ping 69.0.0.1
+
+
+@D1-PNBAlabang
+conf t
+router eigrp 90
+network 69.0.0.0
+end
+!the other PNB must ping 69.0.0.1
+
+!NO CONFLICT Because of the VRF.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ********************************
+
+
 
 ENCOR TASK16: Locator/Identifier Separation Protocol:
 LISP PROTOCOL: or ANTI-BGP, Anti-VPN.
@@ -932,4 +1120,81 @@ END
 show class-map
 show policy-map
 show policy-map control-plane
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -1,5 +1,5 @@
 LISP (Locator ID Separation Protocol)
--mostly implemented to IoT Devices controlled by MobileDevices thru a specialized app and Internet).
+-mostly implemented to IoT Devices controlled by MobileDevices thru a specialized app and Internet like the Lazada's V380 Devices.
 
 
 
@@ -135,11 +135,12 @@ Neighbor ID     Pri   State           Dead Time   Address         Interface
 
 
 
+
 LISP CONFGIURATION: MAP SERVER/MAP RESOLVER.
 R2: mapserver/mapresolver: can Ping everyone:
 config t
 router lisp
-ipv4 map-server
+ipv4 map-server 
 ipv4 map-resolver
 !
 lisp site siteR3
@@ -231,3 +232,12 @@ GigabitEthernet1       192.168.101.11  YES manual up                    up
 GigabitEthernet2       130.0.0.1       YES manual up                    up      
 GigabitEthernet3       unassigned      YES unset  up                    up      
 LISP0                  1.1.1.1         YES unset  up                    up      
+
+
+
+
+
+- Think of EIDs (1.1.1.1 & 3.3.3.3) as devices names (e.g., "Device1" and "Device2").
+- The Map-Server is like a recordbook that keeps track of where Device1 and Device2 are.
+- The Map-Resolver is like a directory service that helps you find their current location when you want to access them.
+- The authentication-key is like a password to ensure only authorized (devices) can update their location to the Map-Server.

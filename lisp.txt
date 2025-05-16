@@ -1,0 +1,233 @@
+LISP (Locator ID Separation Protocol)
+-mostly implemented to IoT Devices controlled by MobileDevices thru a specialized app and Internet).
+
+
+
+3x CSR Ova
+
+all 3 CSR sets to VMNET1/2/3 all of them.
+
+
+
+
+@all routers pre-config mgmt access
+
+R1:
+conf t
+hostname R1-Makati
+no logging console
+line vty 0 14
+exec-timeout 0 0
+transport input all
+int gi 1
+ip add 192.168.101.11 255.255.255.0
+no shut
+end
+
+
+R2:
+conf t
+hostname R2-ChinaHQ
+no logging console
+line vty 0 14
+exec-timeout 0 0
+transport input all
+int gi 1
+ip add 192.168.101.12 255.255.255.0
+no shut
+end
+
+
+
+R3:
+conf t
+hostname R3-Manila
+no logging console
+line vty 0 14
+exec-timeout 0 0
+transport input all
+int gi 1
+ip add 192.168.101.13 255.255.255.0
+no shut
+end
+
+
+
+
+@all routers scripts for discovery functions
+config t
+cdp run
+int gi 1
+cdp enable
+int gi 2
+cdp enable
+no shut
+int gi 3
+cdp enable
+no shut
+end
+
+
+
+
+ESTABLISH NETWORK LINK TO  CONSUMER NETWORKS
+@R2(HQ):
+conf t
+router ospf 1
+network 2.2.2.2 0.0.0.0 area 0
+network 130.0.0.2 0.0.0.0 area 0
+network 140.0.0.2 0.0.0.0 area 0
+int lo 0
+ip add 2.2.2.2 255.255.255.255
+int gi 2
+ip add 130.0.0.2 255.255.255.0
+no shut
+int gi 3
+ip add 140.0.0.2 255.255.255.0
+no shut
+end
+
+
+
+
+
+
+ESTABLISH CONSUMER NETWORK FROM MAKATI
+@R1:
+conf t
+router ospf 1
+network 130.0.0.1 0.0.0.0 area 0
+int gi 2
+ip add 130.0.0.1 255.255.255.0
+no shut
+int lo 0
+ ip add 1.1.1.1 255.255.255.255
+end
+
+
+
+ESTABLISH CONSUMER NETWORK FROM MANILA
+@R3:
+conf t
+router ospf 1
+network 140.0.0.3 0.0.0.0 area 0
+int gi 3
+ip add 140.0.0.3 255.255.255.0
+no shut
+int lo 0
+ ip add 3.3.3.3 255.255.255.255
+end
+
+
+
+
+
+
+
+VERIFY CHINA HAVE NETWORK ACCESS TO CONSUMER AREAS:
+
+R2-ChinaHQ#sh ip ospf nei  
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+192.168.103.13    1   FULL/BDR        00:00:32    140.0.0.3       GigabitEthernet3
+192.168.101.11    1   FULL/BDR        00:00:33    130.0.0.1       GigabitEthernet2
+
+
+
+
+LISP CONFGIURATION: MAP SERVER/MAP RESOLVER.
+R2: mapserver/mapresolver: can Ping everyone:
+config t
+router lisp
+ipv4 map-server
+ipv4 map-resolver
+!
+lisp site siteR3
+eid-prefix 3.3.3.3/32           !Endpoint IDentifier to Manila
+authentication-key rivansite3
+!
+lisp site siteR1
+eid-prefix 1.1.1.1/32		!Endpoint IDentifier to Makati
+authentication-key rivansite1
+!
+ip lisp map-server
+ip lisp map-resolver
+!
+end
+
+
+
+
+
+@ETR/ITR: (Egress/Ingress Tunnel Routing)
+R1 (Makati):
+config t
+router Lisp
+database-mapping 1.1.1.1/32 130.0.0.1 priority 1 weight 100
+ipv4 itr
+ipv4 itr map-resolver 2.2.2.2
+ipv4 etr
+ipv4 etr map-server 2.2.2.2 key rivansite1
+end
+
+
+
+R3 (Manila):
+config t
+router Lisp
+database-mapping 3.3.3.3/32 140.0.0.3 priority 1 weight 100
+ipv4 itr
+ipv4 itr map-resolver 2.2.2.2
+ipv4 etr
+ipv4 etr map-server 2.2.2.2 key rivansite3
+end
+
+
+
+
+
+
+CHECK LISP FUNCTIONS:
+!
+show lisp site
+
+Site Name      Last      Up     Who Last             Inst     EID Prefix
+               Register         Registered           ID       
+siteR1         00:01:13  yes#   130.0.0.1:12429               1.1.1.1/32
+siteR3         00:01:02  yes#   140.0.0.3:23079               3.3.3.3/32
+
+
+
+
+
+!for client checking:
+
+R3-Manila#show ip lisp map-cache
+LISP IPv4 Mapping Cache for EID-table default (IID 0), 2 entries
+
+0.0.0.0/0, uptime: 00:21:59, expires: never, via static-send-map-request
+  Negative cache entry, action: send-map-request
+1.1.1.1/32, uptime: 00:19:02, expires: 23:40:58, via map-reply, complete
+  Locator    Uptime    State      Pri/Wgt     Encap-IID
+  130.0.0.1  00:19:02  up           1/100       -
+
+
+
+
+R1-Makati#sh ip lisp database
+LISP ETR IPv4 Mapping Database for EID-table default (IID 0), LSBs: 0x1
+Entries total 1, no-route 0, inactive 0
+
+1.1.1.1/32
+  Locator    Pri/Wgt  Source     State
+  130.0.0.1    1/100  cfg-addr   site-self, reachable
+
+
+
+
+R1-Makati#sh ip int br
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet1       192.168.101.11  YES manual up                    up      
+GigabitEthernet2       130.0.0.1       YES manual up                    up      
+GigabitEthernet3       unassigned      YES unset  up                    up      
+LISP0                  1.1.1.1         YES unset  up                    up      
